@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今天吃什麼？🎡</title>
+<style>
+  :root {
+    --bg: #fff7ec;
+    --card: #ffffff;
+    --text: #3d2c29;
+    --muted: #8a7470;
+    --primary: #ff6b6b;
+    --primary-dark: #e65555;
+    --accent: #ffd166;
+    --line: #f1e3d3;
+    --shadow: 0 8px 24px rgba(160, 100, 60, 0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    background-color: var(--bg);
+    background-image: radial-gradient(#ffe2c4 1.5px, transparent 1.5px);
+    background-size: 22px 22px;
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  header { text-align: center; margin-bottom: 20px; }
+  h1 { font-size: clamp(28px, 6vw, 44px); letter-spacing: 1px; }
+  .sub { color: var(--muted); margin-top: 6px; }
+
+  /* 分類按鈕 */
+  .tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 22px; }
+  .tab {
+    border: 2px solid var(--line); background: var(--card); color: var(--text);
+    padding: 8px 16px; border-radius: 999px; font-size: 16px; font-family: inherit;
+    cursor: pointer; transition: transform .15s, background .15s;
+  }
+  .tab:hover { transform: translateY(-2px); }
+  .tab.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 700; }
+  .tab:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .main { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 760px) { .main { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border-radius: 24px; box-shadow: var(--shadow); padding: 20px; }
+
+  /* 轉盤 */
+  .wheel-box { position: relative; width: 100%; max-width: 420px; margin: 8px auto 0; aspect-ratio: 1 / 1; }
+  #wheel { width: 100%; height: 100%; display: block; }
+  .pointer {
+    position: absolute; top: -8px; left: 50%; transform: translateX(-50%); z-index: 2;
+    width: 0; height: 0;
+    border-left: 18px solid transparent; border-right: 18px solid transparent;
+    border-top: 36px solid var(--text);
+    filter: drop-shadow(0 3px 2px rgba(0,0,0,.25));
+  }
+  .spin-btn {
+    display: block; margin: 22px auto 4px; padding: 14px 44px;
+    font-size: 22px; font-weight: 800; font-family: inherit; color: #fff;
+    background: var(--primary); border: none; border-radius: 999px; cursor: pointer;
+    box-shadow: 0 6px 0 var(--primary-dark); transition: transform .1s, box-shadow .1s;
+  }
+  .spin-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--primary-dark); }
+  .spin-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--primary-dark); }
+  .spin-btn:disabled { background: #c9b8b3; box-shadow: 0 6px 0 #a8968f; cursor: not-allowed; transform: none; }
+  .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+  /* 選項清單 */
+  .panel h2 { font-size: 20px; margin-bottom: 4px; }
+  .count { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .add-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .add-row input {
+    flex: 1; min-width: 0; padding: 10px 14px; font-size: 16px; font-family: inherit;
+    border: 2px solid var(--line); border-radius: 14px; outline: none; color: var(--text); background: #fffdf9;
+  }
+  .add-row input:focus { border-color: var(--accent); }
+  .btn {
+    padding: 10px 16px; font-size: 15px; font-family: inherit; font-weight: 700;
+    border: none; border-radius: 14px; cursor: pointer; transition: transform .1s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-add { background: var(--accent); color: var(--text); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 2px dashed var(--line); width: 100%; margin-top: 14px; }
+
+  .list { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; max-height: 320px; overflow-y: auto; }
+  .chip {
+    display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px;
+    border-radius: 999px; font-size: 15px; color: #fff; font-weight: 600;
+    animation: pop .2s ease;
+  }
+  .chip button {
+    width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(255,255,255,.35); color: #fff; font-size: 14px; line-height: 1;
+  }
+  .chip button:hover { background: rgba(255,255,255,.6); }
+  .chip button:disabled { cursor: not-allowed; }
+  .empty { color: var(--muted); font-size: 14px; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* 結果視窗 */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(61, 44, 41, .45);
+    display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 28px; padding: 32px 24px 24px; text-align: center;
+    width: 100%; max-width: 360px; box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    animation: bounce .45s cubic-bezier(.2, 1.6, .4, 1);
+  }
+  @keyframes bounce { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal .label { color: var(--muted); font-size: 15px; }
+  .modal .result { font-size: 40px; font-weight: 900; margin: 10px 0 22px; color: var(--primary); word-break: break-all; }
+  .modal .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn-ok { background: var(--primary); color: #fff; padding: 12px; font-size: 17px; }
+  .btn-again { background: #f6ede4; color: var(--text); padding: 12px; font-size: 16px; }
+
+  /* 提示訊息 */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 15px;
+    opacity: 0; pointer-events: none; transition: .25s; z-index: 20; max-width: calc(100% - 32px); text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; }
+
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>今天吃什麼？🎡</h1>
+    <p class="sub">選不出來就交給命運吧！</p>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <div class="main">
+    <section class="card">
+      <div class="wheel-box">
+        <div class="pointer"></div>
+        <canvas id="wheel"></canvas>
+      </div>
+      <button class="spin-btn" id="spinBtn">開始轉！</button>
+      <p class="hint">小技巧：按空白鍵也可以轉喔</p>
+    </section>
+
+    <section class="card panel">
+      <h2 id="panelTitle">選項清單</h2>
+      <p class="count" id="count"></p>
+      <div class="add-row">
+        <input id="newItem" type="text" maxlength="12" placeholder="輸入想吃的，例如：麻辣鍋">
+        <button class="btn btn-add" id="addBtn">新增</button>
+      </div>
+      <ul class="list" id="list"></ul>
+      <button class="btn btn-ghost" id="resetBtn">↺ 恢復預設清單</button>
+    </section>
+  </div>
+
+  <footer>今天吃什麼？ · 用 Vibe Coding 製作</footer>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <p class="label" id="modalLabel">命運決定你吃</p>
+    <p class="result" id="resultText"></p>
+    <div class="actions">
+      <button class="btn btn-ok" id="okBtn">好，就吃這個！😋</button>
+      <button class="btn btn-again" id="againBtn">不想吃，再轉一次 🔄</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+  // ===== 預設資料 =====
+  const CATEGORIES = [
+    { key: "breakfast", label: "🍳 早餐" },
+    { key: "lunch",     label: "🍱 午餐" },
+    { key: "dinner",    label: "🍜 晚餐" },
+    { key: "night",     label: "🌙 宵夜" },
+    { key: "drink",     label: "🧋 飲料" }
+  ];
+  const DEFAULTS = {
+    breakfast: ["蛋餅", "飯糰", "蘿蔔糕", "火腿吐司", "燒餅油條", "鍋貼", "饅頭夾蛋", "鐵板麵"],
+    lunch:     ["便當", "牛肉麵", "滷肉飯", "水餃", "義大利麵", "拉麵", "咖哩飯", "炒飯"],
+    dinner:    ["火鍋", "壽司", "牛排", "麻辣燙", "韓式拌飯", "披薩", "熱炒", "鍋燒意麵"],
+    night:     ["鹹酥雞", "泡麵", "滷味", "雞排", "烤玉米", "關東煮", "豆花", "燒烤"],
+    drink:     ["珍珠奶茶", "紅茶拿鐵", "四季春", "多多綠", "冬瓜檸檬", "黑糖鮮奶", "芒果冰沙", "美式咖啡"]
+  };
+  const COLORS = ["#ff6b6b", "#ffa94d", "#f4c430", "#51cf66", "#4dabf7", "#9775fa", "#f783ac", "#20c997"];
+  const STORAGE_KEY = "what-to-eat-wheel-v1";
+  const MAX_ITEMS = 16;
+  const TAU = Math.PI * 2;
+
+  // ===== 狀態 =====
+  let data = loadData();
+  let currentCat = guessCategoryByTime();
+  let rotation = 0;
+  let spinning = false;
+  let lastWinner = null;
+
+  // ===== 元素 =====
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("wheel"), ctx = canvas.getContext("2d");
+  const tabsEl = $("tabs"), listEl = $("list"), countEl = $("count");
+  const inputEl = $("newItem"), addBtn = $("addBtn"), resetBtn = $("resetBtn");
+  const spinBtn = $("spinBtn"), modalBg = $("modalBg"), resultText = $("resultText");
+
+  // ===== 儲存 / 讀取（存在瀏覽器）=====
+  function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULTS)); }
+  function loadData() {
+    const d = cloneDefaults();
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (saved) {
+        for (const c of CATEGORIES) {
+          if (Array.isArray(saved[c.key])) d[c.key] = saved[c.key].filter(x => typeof x === "string").slice(0, MAX_ITEMS);
+        }
+      }
+    } catch (e) { /* 無法讀取就用預設 */ }
+    return d;
+  }
+  function saveData() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* 忽略 */ }
+  }
+
+  // 依照現在時間自動選分類
+  function guessCategoryByTime() {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 10) return "breakfast";
+    if (h >= 10 && h < 15) return "lunch";
+    if (h >= 15 && h < 21) return "dinner";
+    return "night";
+  }
+
+  function items() { return data[currentCat]; }
+  function catLabel() { return CATEGORIES.find(c => c.key === currentCat).label; }
+
+  function colorFor(i, n) {
+    let c = i % COLORS.length;
+    // 避免最後一格和第一格同色相鄰
+    if (n > 1 && i === n - 1 && c === 0) c = 2;
+    return COLORS[c];
+  }
+
+  // ===== 畫轉盤 =====
+  function resizeCanvas() {
+    const size = canvas.clientWidth;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawWheel();
+  }
+
+  function drawWheel() {
+    const size = canvas.clientWidth;
+    const c = size / 2;
+    const r = c - 8;
+    const list = items();
+    const n = list.length;
+    ctx.clearRect(0, 0, size, size);
+
+    // 外圈陰影
+    ctx.save();
+    ctx.shadowColor = "rgba(160,100,60,.3)";
+    ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(c, c, r, 0, TAU); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.restore();
+
+    if (n === 0) {
+      ctx.beginPath(); ctx.arc(c, c, r, 0, TAU); ctx.fillStyle = "#f6ede4"; ctx.fill();
+      ctx.fillStyle = "#8a7470"; ctx.font = "bold 18px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("先在右邊新增選項吧！", c, c);
+      return;
+    }
+
+    const arc = TAU / n;
+    const fontSize = Math.max(12, Math.min(22, r / (n > 10 ? 9 : 7)));
+    for (let i = 0; i < n; i++) {
+      const start = rotation + i * arc;
+      const color = colorFor(i, n);
+      ctx.beginPath();
+      ctx.moveTo(c, c);
+      ctx.arc(c, c, r, start, start + arc);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+
+      // 文字
+      ctx.save();
+      ctx.translate(c, c);
+      ctx.rotate(start + arc / 2);
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.font = `bold ${fontSize}px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+      ctx.fillStyle = color === "#f4c430" ? "#3d2c29" : "#fff";
+      let text = list[i];
+      const maxW = r * 0.68;
+      while (ctx.measureText(text).width > maxW && text.length > 1) text = text.slice(0, -1);
+      if (text !== list[i]) text = text.slice(0, -1) + "…";
+      ctx.fillText(text, r - 16, 0);
+      ctx.restore();
+    }
+
+    // 外框
+    ctx.beginPath(); ctx.arc(c, c, r, 0, TAU);
+    ctx.lineWidth = 6; ctx.strokeStyle = "#3d2c29"; ctx.stroke();
+
+    // 中心圓
+    const hub = r * 0.15;
+    ctx.beginPath(); ctx.arc(c, c, hub, 0, TAU);
+    ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = "#3d2c29"; ctx.stroke();
+    ctx.font = `${hub * 1.0}px sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("🍽️", c, c + 1);
+  }
+
+  // ===== 轉動 =====
+  function spin() {
+    if (spinning) return;
+    const list = items();
+    const n = list.length;
+    if (n < 2) { toast("至少要有 2 個選項才能轉喔！"); return; }
+
+    closeModal();
+    spinning = true;
+    setControlsDisabled(true);
+
+    const arc = TAU / n;
+    const winner = Math.floor(Math.random() * n);
+    const offset = arc * (0.15 + Math.random() * 0.7);      // 停在格子內的隨機位置
+    const pointerAngle = Math.PI * 1.5;                       // 指針在正上方
+    let desired = pointerAngle - (winner * arc + offset);
+    desired = ((desired % TAU) + TAU) % TAU;
+    const base = rotation - (((rotation % TAU) + TAU) % TAU);
+    const target = base + TAU * (5 + Math.floor(Math.random() * 3)) + desired;
+
+    const startRot = rotation;
+    const duration = 4200 + Math.random() * 800;
+    const t0 = performance.now();
+
+    function frame(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = 1 - Math.pow(1 - p, 4);                   // 先快後慢
+      rotation = startRot + (target - startRot) * eased;
+      drawWheel();
+      if (p < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        spinning = false;
+        setControlsDisabled(false);
+        showResult(list[winner]);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function setControlsDisabled(dis) {
+    spinBtn.disabled = dis;
+    addBtn.disabled = dis;
+    resetBtn.disabled = dis;
+    inputEl.disabled = dis;
+    tabsEl.querySelectorAll("button").forEach(b => b.disabled = dis);
+    listEl.querySelectorAll("button").forEach(b => b.disabled = dis);
+  }
+
+  // ===== 結果視窗 =====
+  function showResult(name) {
+    const same = name === lastWinner;
+    lastWinner = name;
+    $("modalLabel").textContent = same ? "又是它！命運很堅持，你就吃" : "命運決定你吃";
+    resultText.textContent = name;
+    modalBg.classList.add("show");
+    launchConfetti();
+  }
+  function closeModal() { modalBg.classList.remove("show"); }
+
+  $("okBtn").addEventListener("click", () => { closeModal(); toast(`祝你吃得開心！${catLabel().split(" ")[0]}`); });
+  $("againBtn").addEventListener("click", spin);
+  modalBg.addEventListener("click", (e) => { if (e.target === modalBg) closeModal(); });
+
+  // ===== 分類按鈕 =====
+  function renderTabs() {
+    tabsEl.innerHTML = "";
+    for (const c of CATEGORIES) {
+      const b = document.createElement("button");
+      b.className = "tab" + (c.key === currentCat ? " active" : "");
+      b.textContent = c.label;
+      b.addEventListener("click", () => {
+        if (spinning) return;
+        currentCat = c.key;
+        rotation = 0;
+        lastWinner = null;
+        renderAll();
+      });
+      tabsEl.appendChild(b);
+    }
+  }
+
+  // ===== 選項清單 =====
+  function renderList() {
+    const list = items();
+    $("panelTitle").textContent = `${catLabel()} 選項清單`;
+    countEl.textContent = `共 ${list.length} 個選項（最多 ${MAX_ITEMS} 個）`;
+    listEl.innerHTML = "";
+    if (list.length === 0) {
+      const p = document.createElement("li");
+      p.className = "empty";
+      p.textContent = "清單是空的，新增幾個想吃的吧！";
+      listEl.appendChild(p);
+      return;
+    }
+    list.forEach((name, i) => {
+      const li = document.createElement("li");
+      li.className = "chip";
+      li.style.background = colorFor(i, list.length);
+      if (li.style.background && colorFor(i, list.length) === "#f4c430") li.style.color = "#3d2c29";
+      const span = document.createElement("span");
+      span.textContent = name;
+      const del = document.createElement("button");
+      del.textContent = "✕";
+      del.title = `刪除「${name}」`;
+      del.addEventListener("click", () => removeItem(i));
+      li.append(span, del);
+      listEl.appendChild(li);
+    });
+  }
+
+  function addItem() {
+    const name = inputEl.value.trim();
+    const list = items();
+    if (!name) { toast("請先輸入想吃的東西 ✍️"); return; }
+    if (list.includes(name)) { toast(`「${name}」已經在清單裡了`); return; }
+    if (list.length >= MAX_ITEMS) { toast(`最多只能放 ${MAX_ITEMS} 個選項喔`); return; }
+    list.push(name);
+    inputEl.value = "";
+    saveData();
+    renderList();
+    drawWheel();
+    toast(`已新增「${name}」`);
+  }
+
+  function removeItem(i) {
+    if (spinning) return;
+    const [name] = items().splice(i, 1);
+    saveData();
+    renderList();
+    drawWheel();
+    toast(`已刪除「${name}」`);
+  }
+
+  function resetCategory() {
+    if (spinning) return;
+    if (!confirm(`確定要把「${catLabel()}」恢復成預設清單嗎？`)) return;
+    data[currentCat] = [...DEFAULTS[currentCat]];
+    rotation = 0;
+    saveData();
+    renderAll();
+    toast("已恢復預設清單");
+  }
+
+  addBtn.addEventListener("click", addItem);
+  inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) addItem(); });
+  resetBtn.addEventListener("click", resetCategory);
+  spinBtn.addEventListener("click", spin);
+
+  // 空白鍵轉、Esc 關閉
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeModal();
+    if (e.code === "Space" && document.activeElement !== inputEl) {
+      e.preventDefault();
+      spin();
+    }
+  });
+
+  // ===== 提示訊息 =====
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+  }
+
+  // ===== 彩帶 =====
+  const cCanvas = $("confetti"), cctx = cCanvas.getContext("2d");
+  let pieces = [], confettiRunning = false;
+  function launchConfetti() {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    cCanvas.width = window.innerWidth;
+    cCanvas.height = window.innerHeight;
+    for (let i = 0; i < 160; i++) {
+      pieces.push({
+        x: cCanvas.width / 2 + (Math.random() - 0.5) * 200,
+        y: cCanvas.height / 2 - 60,
+        vx: (Math.random() - 0.5) * 16,
+        vy: -Math.random() * 14 - 4,
+        size: 6 + Math.random() * 6,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        rot: Math.random() * TAU,
+        vr: (Math.random() - 0.5) * 0.3,
+        life: 0
+      });
+    }
+    if (!confettiRunning) { confettiRunning = true; requestAnimationFrame(confettiFrame); }
+  }
+  function confettiFrame() {
+    cctx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+    pieces.forEach(p => {
+      p.vy += 0.35; p.vx *= 0.99;
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
+      cctx.save();
+      cctx.translate(p.x, p.y); cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+      cctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      cctx.restore();
+    });
+    pieces = pieces.filter(p => p.y < cCanvas.height + 40 && p.life < 300);
+    if (pieces.length) requestAnimationFrame(confettiFrame);
+    else { confettiRunning = false; cctx.clearRect(0, 0, cCanvas.width, cCanvas.height); }
+  }
+
+  // ===== 啟動 =====
+  function renderAll() {
+    renderTabs();
+    renderList();
+    drawWheel();
+  }
+  window.addEventListener("resize", resizeCanvas);
+  renderTabs();
+  renderList();
+  resizeCanvas();
+</script>
+</body>
+</html>
